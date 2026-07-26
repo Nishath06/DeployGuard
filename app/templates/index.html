@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeployGuard | Blue/Green Deployment Demo</title>
+    <meta name="description" content="DeployGuard Demo App for AWS ECS Fargate Blue/Green CI/CD deployments.">
+    <!-- Inter Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="theme-dark">
+    <div class="app-container">
+        
+        <!-- HEADER -->
+        <header class="app-header" id="header">
+            <div class="brand-container">
+                <div class="logo-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        <path d="m9 12 2 2 4-4"/>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <h1 class="brand-title">DeployGuard</h1>
+                    <p class="brand-subtitle">Blue/Green Deployment Demo</p>
+                </div>
+            </div>
+
+            <div class="header-status">
+                <div id="top-status-badge" class="status-badge {{ 'status-healthy' if is_healthy else 'status-unhealthy' }}">
+                    <span class="status-dot"></span>
+                    <span id="top-status-text" class="status-label">{{ status_label }}</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN HERO -->
+        <section class="hero-section" id="hero-section">
+            <div class="hero-content">
+                <div class="hero-badge-container">
+                    <span class="badge badge-slot-{{ config.deployment_slot.lower() }}" id="hero-slot-badge">
+                        SLOT: {{ config.deployment_slot }}
+                    </span>
+                    <span class="badge badge-version" id="hero-version-badge">
+                        {{ config.version }}
+                    </span>
+                </div>
+                <h2 class="hero-title">DeployGuard Production Deployment</h2>
+                <p class="hero-tagline">"Automated. Validated. Resilient."</p>
+
+                <!-- HERO METRICS STRIP -->
+                <div class="hero-metrics-grid">
+                    <div class="hero-metric-card">
+                        <span class="metric-label">Environment</span>
+                        <span class="metric-value metric-env" id="hero-env">{{ config.environment.upper() }}</span>
+                    </div>
+                    <div class="hero-metric-card">
+                        <span class="metric-label">Application Version</span>
+                        <span class="metric-value metric-ver" id="hero-version">{{ config.version }}</span>
+                    </div>
+                    <div class="hero-metric-card highlight-card {{ 'slot-blue-card' if config.deployment_slot == 'BLUE' else 'slot-green-card' }}">
+                        <span class="metric-label">Deployment Slot</span>
+                        <span class="metric-value metric-slot" id="hero-slot">{{ config.deployment_slot }}</span>
+                    </div>
+                    <div class="hero-metric-card">
+                        <span class="metric-label">Status</span>
+                        <span class="metric-value {{ 'text-healthy' if is_healthy else 'text-unhealthy' }}" id="hero-status">{{ status_label }}</span>
+                    </div>
+                    <div class="hero-metric-card">
+                        <span class="metric-label">Git Commit</span>
+                        <span class="metric-value code-font" id="hero-commit">{{ config.commit[:7] }}</span>
+                    </div>
+                    <div class="hero-metric-card">
+                        <span class="metric-label">Build Number</span>
+                        <span class="metric-value" id="hero-build">#{{ config.build_number }}</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- BLUE / GREEN DEPLOYMENT SLOTS SECTION -->
+        <section class="dashboard-section" id="blue-green-section">
+            <div class="section-header">
+                <h3 class="section-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                    Blue/Green Deployment
+                </h3>
+                <span class="section-tag">Active Traffic Router</span>
+            </div>
+
+            <div class="slots-grid">
+                <!-- BLUE SLOT CARD -->
+                <div class="slot-card slot-card-blue {{ 'is-active-slot' if config.deployment_slot == 'BLUE' else 'is-standby-slot' }}" id="card-slot-blue">
+                    <div class="slot-card-header">
+                        <div class="slot-card-title">
+                            <span class="slot-indicator indicator-blue"></span>
+                            <h4>BLUE</h4>
+                        </div>
+                        {% if config.deployment_slot == 'BLUE' %}
+                            <span class="traffic-badge traffic-active">TRAFFIC 100%</span>
+                        {% else %}
+                            <span class="traffic-badge traffic-standby">TRAFFIC 0%</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="slot-card-body">
+                        <div class="slot-field">
+                            <span class="field-label">Version</span>
+                            <span class="field-value">{{ config.version if config.deployment_slot == 'BLUE' else '-' }}</span>
+                        </div>
+                        <div class="slot-field">
+                            <span class="field-label">Status</span>
+                            <span class="field-value status-pill {{ 'pill-active' if config.deployment_slot == 'BLUE' else 'pill-standby' }}">
+                                {{ 'ACTIVE' if config.deployment_slot == 'BLUE' else 'STANDBY' }}
+                            </span>
+                        </div>
+                        <div class="slot-field">
+                            <span class="field-label">Traffic Allocation</span>
+                            <span class="field-value">{{ '100%' if config.deployment_slot == 'BLUE' else '0%' }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GREEN SLOT CARD -->
+                <div class="slot-card slot-card-green {{ 'is-active-slot' if config.deployment_slot == 'GREEN' else 'is-standby-slot' }}" id="card-slot-green">
+                    <div class="slot-card-header">
+                        <div class="slot-card-title">
+                            <span class="slot-indicator indicator-green"></span>
+                            <h4>GREEN</h4>
+                        </div>
+                        {% if config.deployment_slot == 'GREEN' %}
+                            <span class="traffic-badge traffic-active">TRAFFIC 100%</span>
+                        {% else %}
+                            <span class="traffic-badge traffic-standby">TRAFFIC 0%</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="slot-card-body">
+                        <div class="slot-field">
+                            <span class="field-label">Version</span>
+                            <span class="field-value">{{ config.version if config.deployment_slot == 'GREEN' else '-' }}</span>
+                        </div>
+                        <div class="slot-field">
+                            <span class="field-label">Status</span>
+                            <span class="field-value status-pill {{ 'pill-active' if config.deployment_slot == 'GREEN' else 'pill-standby' }}">
+                                {{ 'ACTIVE' if config.deployment_slot == 'GREEN' else 'STANDBY' }}
+                            </span>
+                        </div>
+                        <div class="slot-field">
+                            <span class="field-label">Traffic Allocation</span>
+                            <span class="field-value">{{ '100%' if config.deployment_slot == 'GREEN' else '0%' }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- PIPELINE VISUALIZATION SECTION -->
+        <section class="dashboard-section" id="pipeline-section">
+            <div class="section-header">
+                <h3 class="section-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    CI/CD Pipeline
+                </h3>
+                <span class="section-tag">Automated Release Flow</span>
+            </div>
+
+            <div class="pipeline-wrapper">
+                <div class="pipeline-container">
+                    <div class="pipeline-stage">
+                        <div class="stage-icon">✓</div>
+                        <div class="stage-label">GitHub</div>
+                    </div>
+                    <div class="pipeline-arrow">➔</div>
+
+                    <div class="pipeline-stage">
+                        <div class="stage-icon">✓</div>
+                        <div class="stage-label">Jenkins</div>
+                    </div>
+                    <div class="pipeline-arrow">➔</div>
+
+                    <div class="pipeline-stage">
+                        <div class="stage-icon">✓</div>
+                        <div class="stage-label">Test</div>
+                    </div>
+                    <div class="pipeline-arrow">➔</div>
+
+                    <div class="pipeline-stage">
+                        <div class="stage-icon">✓</div>
+                        <div class="stage-label">Docker Build</div>
+                    </div>
+                    <div class="pipeline-arrow">➔</div>
+
+                    <div class="pipeline-stage">
+                        <div class="stage-icon">✓</div>
+                        <div class="stage-label">Trivy Scan</div>
+                    </div>
+                    <div class="pipeline-arrow">➔</div>
+
+                    <div class="pipeline-stage">
+                        <div class="stage-icon">✓</div>
+                        <div class="stage-label">Amazon ECR</div>
+                    </div>
+                    <div class="pipeline-arrow">➔</div>
+
+                    <div class="pipeline-stage">
+                        <div class="stage-icon">✓</div>
+                        <div class="stage-label">ECS Fargate</div>
+                    </div>
+                    <div class="pipeline-arrow">➔</div>
+
+                    <div class="pipeline-stage {{ 'stage-pass' if is_healthy else 'stage-fail' }}">
+                        <div class="stage-icon">{{ '✓' if is_healthy else '✕' }}</div>
+                        <div class="stage-label">Health Check</div>
+                    </div>
+                    <div class="pipeline-arrow">➔</div>
+
+                    <div class="pipeline-stage stage-highlight">
+                        <div class="stage-icon">★</div>
+                        <div class="stage-label">Production</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- DEPLOYMENT INFORMATION SECTION -->
+        <section class="dashboard-section" id="deployment-info-section">
+            <div class="section-header">
+                <h3 class="section-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    Deployment Information
+                </h3>
+            </div>
+
+            <div class="info-grid">
+                <div class="info-card">
+                    <span class="info-label">Application</span>
+                    <span class="info-value">DeployGuard Demo</span>
+                </div>
+                <div class="info-card">
+                    <span class="info-label">Version</span>
+                    <span class="info-value code-font">{{ config.version }}</span>
+                </div>
+                <div class="info-card">
+                    <span class="info-label">Environment</span>
+                    <span class="info-value">{{ config.environment }}</span>
+                </div>
+                <div class="info-card">
+                    <span class="info-label">Deployment Slot</span>
+                    <span class="info-value font-bold text-slot">{{ config.deployment_slot }}</span>
+                </div>
+                <div class="info-card">
+                    <span class="info-label">Git Commit</span>
+                    <span class="info-value code-font">{{ config.commit }}</span>
+                </div>
+                <div class="info-card">
+                    <span class="info-label">Build Number</span>
+                    <span class="info-value">#{{ config.build_number }}</span>
+                </div>
+                <div class="info-card">
+                    <span class="info-label">Container</span>
+                    <span class="info-value text-healthy">● Running</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- SYSTEM STATUS SECTION -->
+        <section class="dashboard-section" id="system-status-section">
+            <div class="section-header">
+                <h3 class="section-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    System Status
+                </h3>
+            </div>
+
+            <div class="status-grid">
+                <div class="status-item-card">
+                    <div class="status-item-header">
+                        <span class="status-item-title">Application</span>
+                        <span class="status-item-indicator status-dot-healthy"></span>
+                    </div>
+                    <div class="status-item-state">● Operational</div>
+                </div>
+
+                <div class="status-item-card">
+                    <div class="status-item-header">
+                        <span class="status-item-title">Health Endpoint</span>
+                        <span id="endpoint-health-dot" class="status-item-indicator {{ 'status-dot-healthy' if is_healthy else 'status-dot-unhealthy' }}"></span>
+                    </div>
+                    <div id="endpoint-health-text" class="status-item-state {{ 'text-healthy' if is_healthy else 'text-unhealthy' }}">
+                        ● {{ 'Healthy' if is_healthy else 'Unhealthy (HTTP 503)' }}
+                    </div>
+                </div>
+
+                <div class="status-item-card">
+                    <div class="status-item-header">
+                        <span class="status-item-title">Container</span>
+                        <span class="status-item-indicator status-dot-healthy"></span>
+                    </div>
+                    <div class="status-item-state">● Running</div>
+                </div>
+
+                <div class="status-item-card">
+                    <div class="status-item-header">
+                        <span class="status-item-title">Environment</span>
+                        <span class="status-item-indicator status-dot-blue"></span>
+                    </div>
+                    <div class="status-item-state">{{ config.environment.capitalize() }}</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- API ENDPOINTS REFERENCE -->
+        <section class="dashboard-section" id="api-endpoints-section">
+            <div class="section-header">
+                <h3 class="section-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                    Available API Endpoints
+                </h3>
+            </div>
+            <div class="endpoints-grid">
+                <a href="/" class="endpoint-card">
+                    <span class="method-badge method-get">GET</span>
+                    <span class="endpoint-path">/</span>
+                    <span class="endpoint-desc">Dashboard Landing Page (HTML)</span>
+                </a>
+                <a href="/health" class="endpoint-card" target="_blank">
+                    <span class="method-badge method-get">GET</span>
+                    <span class="endpoint-path">/health</span>
+                    <span class="endpoint-desc">ECS / ALB Health Check (200 / 503)</span>
+                </a>
+                <a href="/version" class="endpoint-card" target="_blank">
+                    <span class="method-badge method-get">GET</span>
+                    <span class="endpoint-path">/version</span>
+                    <span class="endpoint-desc">Version & Deployment JSON</span>
+                </a>
+                <a href="/api/info" class="endpoint-card" target="_blank">
+                    <span class="method-badge method-get">GET</span>
+                    <span class="endpoint-path">/api/info</span>
+                    <span class="endpoint-desc">Complete Metadata JSON</span>
+                </a>
+            </div>
+        </section>
+
+        <!-- FOOTER -->
+        <footer class="app-footer">
+            <p>DeployGuard Demo App &bull; Powered by Python, FastAPI & Docker &bull; AWS ECS Fargate Blue/Green Deployment Architecture</p>
+        </footer>
+
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
