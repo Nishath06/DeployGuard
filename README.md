@@ -19,45 +19,7 @@ It demonstrates core SRE & DevOps patterns:
 
 ## Architecture
 
-```
-                                  +-------------------+
-                                  |    GitHub Commit  |
-                                  +---------+---------+
-                                            |
-                                            v
-                                  +-------------------+
-                                  |  Jenkins Pipeline |
-                                  +---------+---------+
-                                            |
-                         +------------------+------------------+
-                         |                                     |
-                         v                                     v
-              +--------------------+                 +--------------------+
-              | Docker Image Build |                 | Trivy Vulnerability|
-              +----------+---------+                 |        Scan        |
-                         |                           +--------------------+
-                         v
-              +--------------------+
-              |     Amazon ECR     |
-              +----------+---------+
-                         |
-                         v
-              +--------------------+
-              |   AWS ECS Fargate  |
-              +----------+---------+
-                         |
-           +-------------+-------------+
-           | ALB Health Check (/health)|
-           +-------------+-------------+
-                         |
-        +----------------+----------------+
-        |                                 |
-        v                                 v
-+---------------+                 +---------------+
-|   BLUE Slot   |                 |   GREEN Slot  |
-| (Active: 100%)|                 | (Standby: 0%) |
-+---------------+                 +---------------+
-```
+![Architecture Diagram](./Architecture%20diagaram.png)
 
 ---
 
@@ -94,6 +56,35 @@ The application dynamically renders deployment details provided via environment 
 | `GET` | `/health` | ECS/ALB Health Check endpoint | `200 OK` (or `503` if forced) |
 | `GET` | `/version` | Returns application version & deployment slot JSON | `200 OK` |
 | `GET` | `/api/info` | Returns complete deployment metadata & operational status | `200 OK` |
+
+---
+
+## Screenshots
+
+### Application Dashboard
+![Dashboard](./dashboard%20image.png)
+
+### Jenkins CI/CD Pipeline
+![Jenkins Stages](./jenkins%20stages%20.png)
+
+### Trivy Vulnerability Scan
+![Trivy Scan Output](./trivy%20scan%20output%20.png)
+
+### Amazon ECR
+![ECR Image](./ECR%20image.png)
+
+### AWS Infrastructure & Deployment
+**Application Load Balancer:**
+![ALB](./alb%20.png)
+
+**Target Groups:**
+![Target Groups](./target%20groups.png)
+
+**Blue/Green Deployment Config:**
+![Blue Green Deployment Config](./blue%20green%20deployment%20config.png)
+
+**CloudWatch Logs:**
+![CloudWatch Logs](./cloudwatch%20logs.png)
 
 ---
 
