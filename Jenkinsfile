@@ -128,6 +128,31 @@ pipeline {
                 }
             }
         }
+        stage('Deploy to ECS') {
+    steps {
+
+        withCredentials([
+            usernamePassword(
+                credentialsId: 'AWS-user',
+                usernameVariable: 'AWS_ACCESS_KEY_ID',
+                passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+            )
+        ]) {
+
+            sh '''
+                echo "Starting DeployGuard Blue/Green deployment..."
+
+                aws ecs update-service \
+                    --cluster deployguard-cluster \
+                    --service deployguard-task-service-fcszavcr \
+                    --force-new-deployment \
+                    --region ap-south-1
+
+                echo "ECS deployment started!"
+            '''
+        }
+    }
+}
     }
 
     post {
