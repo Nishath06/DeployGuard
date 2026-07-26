@@ -4,13 +4,10 @@ pipeline {
 
     environment {
         AWS_REGION = 'ap-south-1'
-
         AWS_ACCOUNT_ID = '177001539059'
-
         ECR_REPO = 'deployguard'
 
         ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-
         IMAGE = "${ECR_REGISTRY}/${ECR_REPO}"
     }
 
@@ -19,6 +16,21 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+            }
+        }
+
+        stage('Prepare Build Info') {
+            steps {
+                script {
+                    env.GIT_SHA = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Building Git commit: ${env.GIT_SHA}"
+                    echo "Image: ${IMAGE}:${env.GIT_SHA}"
+                    echo "Latest: ${IMAGE}:latest"
+                }
             }
         }
 
@@ -38,19 +50,12 @@ pipeline {
 
         stage('Docker Build') {
             steps {
-                script {
-
-                    env.GIT_SHA = sh(
-                        script: 'git rev-parse --short HEAD',
-                        returnStdout: true
-                    ).trim()
-
-                    sh """
-                        docker build \
+                sh '''
+                    docker build \
                         -t ${IMAGE}:${GIT_SHA} \
+                        -t ${IMAGE}:latest \
                         .
-                    """
-                }
+                '''
             }
         }
 
@@ -58,16 +63,15 @@ pipeline {
             steps {
                 sh '''
                     trivy image \
-                    --severity HIGH,CRITICAL \
-                    --exit-code 0 \
-                    ${IMAGE}:${GIT_SHA}
+                        --severity HIGH,CRITICAL \
+                        --exit-code 0 \
+                        ${IMAGE}:${GIT_SHA}
                 '''
             }
         }
 
         stage('ECR Login') {
             steps {
-
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'AWS-user',
@@ -75,13 +79,12 @@ pipeline {
                         passwordVariable: 'AWS_SECRET_ACCESS_KEY'
                     )
                 ]) {
-
                     sh '''
                         aws ecr get-login-password \
-                        --region ${AWS_REGION} \
+                            --region ${AWS_REGION} \
                         | docker login \
-                        --username AWS \
-                        --password-stdin ${ECR_REGISTRY}
+                            --username AWS \
+                            --password-stdin ${ECR_REGISTRY}
                     '''
                 }
             }
@@ -89,7 +92,6 @@ pipeline {
 
         stage('Push ECR') {
             steps {
-
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'AWS-user',
@@ -97,20 +99,43 @@ pipeline {
                         passwordVariable: 'AWS_SECRET_ACCESS_KEY'
                     )
                 ]) {
-
                     sh '''
+                        echo "Pushing commit image..."
                         docker push ${IMAGE}:${GIT_SHA}
+
+                        echo "Pushing latest image..."
+                        docker push ${IMAGE}:latest
                     '''
                 }
             }
         }
 
+        stage('Verify ECR Image') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'AWS-user',
+                        usernameVariable: 'AWS_ACCESS_KEY_ID',
+                        passwordVariable: 'AWS_SECRET_ACCESS_KEY'
+                    )
+                ]) {
+                    sh '''
+                        aws ecr describe-images \
+                            --repository-name ${ECR_REPO} \
+                            --region ${AWS_REGION} \
+                            --image-ids imageTag=latest
+                    '''
+                }
+            }
+        }
     }
 
     post {
 
         success {
             echo 'DeployGuard CI pipeline successful!'
+            echo "Image: ${IMAGE}:${GIT_SHA}"
+            echo "Latest: ${IMAGE}:latest"
         }
 
         failure {
@@ -118,5 +143,4 @@ pipeline {
         }
 
     }
-
 }
